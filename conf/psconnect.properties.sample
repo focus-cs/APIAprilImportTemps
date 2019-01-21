@@ -1,0 +1,24 @@
+﻿# fichier de configuration de la connexion avec PSNext
+# mettre vos valeurs à la place des <...>
+
+psnext.url = <renseigner l'url vers votre instance PSNext>
+psnext.login = <renseigner le login ayant les droits pour la passerelle de votre instance PSNext>
+psnext.password = <renseigner le password associé au login>
+
+db.url = jdbc:jtds:sqlserver://<ip ou nom dns de l'host de la base PSNext>:1433/<nom de la base PSnext>
+db.login = <renseigner l'utilisateur de la base de données PSNext
+db.password = <renseigner le mot de passe de l'utilisateur de la base de données PSNext
+
+easyvista.url = jdbc:jtds:sqlserver://<ip ou nom dns de l'host de la base EASYVISTA>:1433/<nom de la base EASYVISTA>
+easyvista.login = <renseigner l'utilisateur de la base de données EASYVISTA>
+easyvista.password = <renseigner le mot de passe de l'utilisateur de la base de données EASYVISTA>
+psnext.nbJourPurgeAno = <renseigner le nombre de jours pour la purge de la table d'anomalie>
+
+
+#decomenter si les feuilles de temps doivent être presentées à la fin de l'importation.
+#psnext.presenter = <renseigner "true" (sans les guillemets) si les feuilles de temps doivent être presentées en fin d'importation>
+
+#decommenter les requêtes à utiliser  
+#db.statement-purge = DELETE FROM [REC_AXY_SCIFORMA].PSN_TPS_PASSE_ACQ WHERE DATEDIFF(day, DateTraitement, GETDATE()) >= :nbJourPurgeAno 
+#db.statement-easyvista = SELECT [NumDossier],[CentreDeCoutDossier] ,[ModeDeversement] ,[Intervenant] ,[LoginIntervenant] ,[TempsSaisi] ,[DateIntervention] FROM E_TEMPS_PASSE WHERE [DateIntervention] BETWEEN :debut AND :fin ORDER BY [DateIntervention]
+#db.statement-rejet = INSERT INTO [REC_AXY_SCIFORMA].[PSN_TPS_PASSE_ACQ] ([DateTraitement], [CodeProjet], [CodeAct], [DateIntervention], [NumDossier], [Charge], [LoginIntervenant], [Intervenant], [Message]) VALUES (:datetraitement, :centreDeCoutDossier, :modeDeversement, :dateIntervention, :numDossier, :tempsSaisi, :loginIntervenant, :intervenant, :message)

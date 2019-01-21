@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+       http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.5.xsd
+       http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd
+       http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.5.xsd
+       http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-2.5.xsd">
+
+    <bean class="org.springframework.context.annotation.CommonAnnotationBeanPostProcessor"/>
+
+    <bean id="contextApplicationContextProvider" class="fr.sciforma.context.ApplicationContextProvider"></bean>
+	
+	<bean id="sciforma" class="fr.sciforma.beans.Connector">
+		<property name="IP" value="https://april-migration.sciforma.net"/>
+        <property name="PORT" value=""/>
+        <property name="CONTEXTE" value="sciforma"/>
+        <property name="USER" value="psnextadmin"/>
+        <property name="PWD" value="Sc1form@2018"/>
+        <property name="DRIVER" value=""/>
+    </bean>
+	
+	<bean id="sqlserverev" class="fr.sciforma.beans.Connector">
+		<property name="IP" value="jdbc:jtds:sqlserver://easyvistadb.pro.april.interne.fr:40004/EVO_DATA50004"/>
+        <property name="PORT" value=""/>
+        <property name="CONTEXTE" value=""/>
+        <property name="USER" value="50004"/>
+        <property name="PWD" value="VAefti0174"/>
+        <property name="DRIVER" value="net.sourceforge.jtds.jdbc.Driver"/>
+    </bean>
+	
+	<bean id="sqlserversciforma" class="fr.sciforma.beans.Connector">
+		<property name="IP" value="jdbc:jtds:sqlserver://sciformadb.pro.april.interne.fr:40001/PRO_AXY_SCIFORMA"/>
+        <property name="PORT" value=""/>
+        <property name="CONTEXTE" value=""/>
+        <property name="USER" value="PRO_AXY_SCIFORMA_OWN"/>
+        <property name="PWD" value="PRO_AXY_SClFORMA_0WN3r"/>
+        <property name="DRIVER" value="net.sourceforge.jtds.jdbc.Driver"/>
+    </bean>
+	
+	<bean id="absences" class="fr.sciforma.beans.SciformaField" >
+        <property name="sciformaField" value="D:\\Professionnel\\\APIApril\\\import\\absences.csv"/>
+		<!--property name="sciformaField" value="/opt/import/absences.csv"/-->
+    </bean>
+	
+	<bean id="nbJourPurgeAno" class="fr.sciforma.beans.SciformaField" >
+        <property name="sciformaField" value="90"/>
+    </bean>
+	
+	<bean id="db.statement-purge" class="fr.sciforma.beans.SciformaField" >
+        <property name="sciformaField" value="delete from [PRO_AXY_SCIFORMA].PSN_TPS_PASSE_ACQ WHERE DATEDIFF(day, DateTraitement, GETDATE()) >= :nbJourPurgeAno"/>
+    </bean>
+	<bean id="db.statement-insertErreur" class="fr.sciforma.beans.SciformaField" >
+        <property name="sciformaField" value="INSERT INTO [PRO_AXY_SCIFORMA].[PSN_TPS_PASSE_ACQ] ([DateTraitement],[CodeProjet],[CodeAct] ,[DateIntervention],[NumDossier],[Charge],[LoginIntervenant],[Intervenant],[Message]) VALUES (?,?,?,?,?,?,?,?,?)"/>
+    </bean>
+	<bean id="db.statement-easyvista" class="fr.sciforma.beans.SciformaField" >
+        <property name="sciformaField" value="SELECT [NumDossier], [CentreDeCoutDossier], [ModeDeversement], [Intervenant], [LoginIntervenant], [TempsSaisi], [DateIntervention] FROM [50004].E_TEMPS_PASSE WHERE [DateIntervention] BETWEEN :debut AND :fin AND [NumDossier] is not null AND [CentreDeCoutDossier] is not null AND [ModeDeversement] is not null AND [LoginIntervenant] is not null"/>
+    </bean>
+	<bean id="db.statement-rejet" class="fr.sciforma.beans.SciformaField" >
+        <property name="sciformaField" value="INSERT INTO [PRO_AXY_SCIFORMA].[PSN_TPS_PASSE_ACQ] ([DateTraitement], [CodeProjet], [CodeAct], [DateIntervention], [NumDossier], [Charge], [LoginIntervenant], [Intervenant], [Message]) VALUES (:datetraitement, :centreDeCoutDossier, :modeDeversement, :dateIntervention, :numDossier, :tempsSaisi, :loginIntervenant, :intervenant, :message)"/>
+    </bean>
+	
+	<bean id="nbJourPurgeAno" class="fr.sciforma.beans.SciformaField" >
+        <property name="sciformaField" value="100"/>
+    </bean>
+	
+</beans>
