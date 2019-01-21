@@ -192,6 +192,7 @@ public class Main {
 
         SingleConnectionDataSource dataSourceSciforma = new SingleConnectionDataSource(IP_SCI, USER_SCI, PWD_SCI, false);
         dataSourceSciforma.setDriverClassName("net.sourceforge.jtds.jdbc.Driver");
+        
         jdbcTemplateEasyvista = new NamedParameterJdbcTemplate(dataSourceEasyvista);
         Logger.info("Connexion à la base EASYVISTA");
 
@@ -798,7 +799,7 @@ public class Main {
     }
 
     private static void rejetTaskRecords(List<EasyVistaData> recordsInPeriod, String message) {
-        Date date = new Date();
+        java.sql.Date date = new java.sql.Date(new Date().getTime());
         /*
          try {
             
@@ -828,12 +829,7 @@ public class Main {
          Logger.error(ex);
          }
          */
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        try {
-            date = sdf.parse(sdf.format(date));
-        } catch (ParseException ex) {
-            Logger.error(ex);
-        }
+
         for (EasyVistaData easyVistaData : recordsInPeriod) {
             easyVistaData.setMessage(message);
             easyVistaData.setDateTraitement(date);
