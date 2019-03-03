@@ -3,7 +3,6 @@
  */
 package april.runner;
 
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -15,11 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-
-import org.springframework.jdbc.core.RowCallbackHandler;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.core.namedparam.SqlParameterSourceUtils;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 import com.sciforma.psnext.api.DoubleDatedData;
 import com.sciforma.psnext.api.Global;
@@ -34,6 +28,8 @@ import com.sciforma.psnext.api.User;
 
 import fr.sciforma.psconnect.exception.BusinessException;
 import fr.sciforma.psconnect.exception.TechnicalException;
+import fr.sciforma.psconnect.input.CSVFileInputImpl;
+import fr.sciforma.psconnect.input.LineFileInput;
 import fr.sciforma.psconnect.manager.ProjectManager;
 import fr.sciforma.psconnect.manager.ProjectManagerImpl;
 import fr.sciforma.psconnect.manager.ResourceManager;
@@ -47,20 +43,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
 import org.pmw.tinylog.Logger;
-import net.sourceforge.jtds.jdbc.Driver;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.logging.Level;
-import org.springframework.dao.InvalidDataAccessApiUsageException;
 
 public class Main {
 
-    private final static String NUMBER = "1.6";
+    private final static String NUMBER = "1.8";
 
     private final static String PROGRAM = "importTimeSheet";
 
@@ -72,9 +60,11 @@ public class Main {
 
     private static UserManager userManager;
 
-    private static NamedParameterJdbcTemplate jdbcTemplateEasyvista;
+    /* #ELA-01 
+     private static NamedParameterJdbcTemplate jdbcTemplateEasyvista;
 
-    private static NamedParameterJdbcTemplate jdbcTemplateSciforma;
+     private static NamedParameterJdbcTemplate jdbcTemplateSciforma; 
+     */
     private static Map<String, Map<DateRange, Map<String, Map<String, List<EasyVistaData>>>>> recordsByTaskIdByProjectIdByPeriodByResourceId = new HashMap<String, Map<DateRange, Map<String, Map<String, List<EasyVistaData>>>>>();
 
     private static DateRange fullPeriod;
@@ -87,23 +77,36 @@ public class Main {
 
     //public static ApplicationContext ctx;
     private static String IP;
-    private static String PORT;
     private static String CONTEXTE;
     private static String USER;
     private static String PWD;
 
-    private static String IP_EV;
-    private static String USER_EV;
-    private static String PWD_EV;
+    private static String DATE_MASK;
+    private static int NumDossier;
+    private static int CentreDeCoutDossier;
+    private static int ModeDeversement;
+    private static int Intervenant;
+    private static int LoginIntervenant;
+    private static int TempsSaisi;
+    private static int DateIntervention;
 
-    private static String IP_SCI;
-    private static String USER_SCI;
-    private static String PWD_SCI;
+    /**
+     * #ELA-01 private static String IP_EV; private static String USER_EV;
+     * private static String PWD_EV;
+     *
+     * private static String IP_SCI; private static String USER_SCI; private
+     * static String PWD_SCI;
+    *
+     */
+    private static LineFileInput<String[]> lineFileInput;
 
     private static Properties properties;
 
     /**
      * @param args arguments attendus psconnect.properties et log4j.properties
+     *
+     * #ELA-01 19-02-19 Remplacer les requêtes SQL par la lecture d'un fichier
+     * CSV
      */
     public static void main(String[] args) {
         Logger.info("[main][" + PROGRAM + "][V" + NUMBER + "] Demarrage de l'API: " + new Date());
@@ -173,31 +176,82 @@ public class Main {
 
     private static void chargementConfiguration() throws TechnicalException, BusinessException {
         Logger.info("chargementConfiguration...");
-
         try {
-            Class.forName("net.sourceforge.jtds.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new TechnicalException(e, "impossible de trouver le driver JDBC <" + "net.sourceforge.jtds.jdbc.Driver" + "> dans le classpath.");
+            NumDossier = Integer.valueOf(properties.getProperty("file.NumDossier"));
+        } catch (NumberFormatException exception) {
+            Logger.error("La valeur n'est pas correctement renseignée.",exception);
+            throw new BusinessException("La valeur n'est pas correctement renseignée.");
         }
-        USER_EV = properties.getProperty("easyvista.login");
-        PWD_EV = properties.getProperty("easyvista.password");
-        IP_EV = properties.getProperty("easyvista.url");
-
-        SingleConnectionDataSource dataSourceEasyvista = new SingleConnectionDataSource(IP_EV, USER_EV, PWD_EV, false);
-        dataSourceEasyvista.setDriverClassName("net.sourceforge.jtds.jdbc.Driver");
-
-        USER_SCI = properties.getProperty("db.login");
-        PWD_SCI = properties.getProperty("db.password");
-        IP_SCI = properties.getProperty("db.url");
-
-        SingleConnectionDataSource dataSourceSciforma = new SingleConnectionDataSource(IP_SCI, USER_SCI, PWD_SCI, false);
-        dataSourceSciforma.setDriverClassName("net.sourceforge.jtds.jdbc.Driver");
+        try {
+            CentreDeCoutDossier = Integer.valueOf(properties.getProperty("file.CentreDeCoutDossier"));
+        } catch (NumberFormatException exception) {
+            Logger.error("La valeur n'est pas correctement renseignée.",exception);
+            throw new BusinessException("La valeur n'est pas correctement renseignée.");
+        }
+        try {
+            ModeDeversement = Integer.valueOf(properties.getProperty("file.ModeDeversement"));
+        } catch (NumberFormatException exception) {
+            Logger.error("La valeur n'est pas correctement renseignée.",exception);
+            throw new BusinessException("La valeur n'est pas correctement renseignée.");
+        }
+        try {
+            Intervenant = Integer.valueOf(properties.getProperty("file.Intervenant"));
+        } catch (NumberFormatException exception) {
+            Logger.error("La valeur n'est pas correctement renseignée.",exception);
+            throw new BusinessException("La valeur n'est pas correctement renseignée.");
+        }
+        try {
+            LoginIntervenant = Integer.valueOf(properties.getProperty("file.LoginIntervenant"));
+        } catch (NumberFormatException exception) {
+            Logger.error("La valeur n'est pas correctement renseignée.",exception);
+            throw new BusinessException("La valeur n'est pas correctement renseignée.");
+        }
+        try {
+            TempsSaisi = Integer.valueOf(properties.getProperty("file.TempsSaisi"));
+        } catch (NumberFormatException exception) {
+            Logger.error("La valeur n'est pas correctement renseignée.",exception);
+            throw new BusinessException("La valeur n'est pas correctement renseignée.");
+        }
+        try {
+            DateIntervention = Integer.valueOf(properties.getProperty("file.DateIntervention"));
+        } catch (NumberFormatException exception) {
+            Logger.error("La valeur n'est pas correctement renseignée.",exception);
+            throw new BusinessException("La valeur n'est pas correctement renseignée.");
+        }
         
-        jdbcTemplateEasyvista = new NamedParameterJdbcTemplate(dataSourceEasyvista);
-        Logger.info("Connexion à la base EASYVISTA");
+        DATE_MASK = properties.getProperty("file.date.mask");
 
-        jdbcTemplateSciforma = new NamedParameterJdbcTemplate(dataSourceSciforma);
-        Logger.info("Connexion à la base Sciforma");
+        /**
+         * #ELA-01 try { Class.forName("net.sourceforge.jtds.jdbc.Driver"); }
+         * catch (ClassNotFoundException e) { throw new TechnicalException(e,
+         * "impossible de trouver le driver JDBC
+         * <" + "net.sourceforge.jtds.jdbc.Driver" + "> dans le classpath."); }
+         * USER_EV = properties.getProperty("easyvista.login"); PWD_EV =
+         * properties.getProperty("easyvista.password"); IP_EV =
+         * properties.getProperty("easyvista.url");
+         *
+         * SingleConnectionDataSource dataSourceEasyvista = new
+         * SingleConnectionDataSource(IP_EV, USER_EV, PWD_EV, false);
+         * dataSourceEasyvista.setDriverClassName("net.sourceforge.jtds.jdbc.Driver");
+         *
+         * USER_SCI = properties.getProperty("db.login"); PWD_SCI =
+         * properties.getProperty("db.password"); IP_SCI =
+         * properties.getProperty("db.url");
+         *
+         * SingleConnectionDataSource dataSourceSciforma = new
+         * SingleConnectionDataSource(IP_SCI, USER_SCI, PWD_SCI, false);
+         * dataSourceSciforma.setDriverClassName("net.sourceforge.jtds.jdbc.Driver");
+         *
+         * jdbcTemplateEasyvista = new
+         * NamedParameterJdbcTemplate(dataSourceEasyvista);
+         * Logger.info("Connexion à la base EASYVISTA");
+         *
+         * jdbcTemplateSciforma = new
+         * NamedParameterJdbcTemplate(dataSourceSciforma);
+         * Logger.info("Connexion à la base Sciforma");
+        *
+         */
+        lineFileInput = new CSVFileInputImpl(properties.getProperty("import.file"));
 
         String moisAFacturer;
         try {
@@ -247,7 +301,14 @@ public class Main {
         }
 
         Calendar calendar = Calendar.getInstance();
+        /* 
+         *#ELA-01
+         calendar.set(anneeRef, moisRef - 1, 1, 0, 0, 0);
+         */
         calendar.set(anneeRef, moisRef - 1, 1, 0, 0, 0);
+        calendar.set(Calendar.DAY_OF_MONTH, 1);
+        //calendar.add(Calendar.MONTH, -1);
+
         calendar.set(Calendar.MILLISECOND, 0);
         Date debut = calendar.getTime();
 
@@ -278,9 +339,12 @@ public class Main {
     protected static void process() throws TechnicalException {
         /*try {*/
         // suppression des acquitements de plus de XX jour
-        String nbJourPurgeAno = properties.getProperty("nbJourPurgeAno");
-        Calendar calendar = Calendar.getInstance();
-        calendar.add(Calendar.DATE, -Integer.parseInt(nbJourPurgeAno));
+        /*
+         *#ELA-01
+         String nbJourPurgeAno = properties.getProperty("nbJourPurgeAno");
+         Calendar calendar = Calendar.getInstance();
+         calendar.add(Calendar.DATE, -Integer.parseInt(nbJourPurgeAno));
+         */
 
         /*
          Global g = new Global();
@@ -299,34 +363,46 @@ public class Main {
          }
          g.save(true);
          */
-        HashMap<String, Serializable> paramMap = new HashMap<String, Serializable>();
-        paramMap.put("nbJourPurgeAno", nbJourPurgeAno);
+        /**
+         * #ELA-01
+         *
+         * HashMap<String, Serializable> paramMap = new
+         * HashMap<String, Serializable>(); paramMap.put("nbJourPurgeAno",
+         * nbJourPurgeAno);
+         *
+         * jdbcTemplateSciforma.update((properties.getProperty("db.statement-purge")),
+         * paramMap);
+         *
+         * Logger.info("table PSN_TPS_PASSE_ACQ : suppression des anomalies
+         * datant de plus de <" + nbJourPurgeAno + "> jours. ");
+         *
+         * // récupération des données Logger.info("parcours de la table
+         * E_TEMPS_PASSE de la base de données EASYVISTA...");
+         *
+         * HashMap<String, Object> parameters = new HashMap<String, Object>();
+         *
+         * parameters.put("debut", fullPeriod.getDateDebut());
+         * parameters.put("fin", fullPeriod.getDateFin());
+         */
+        for (String[] line : lineFileInput.readAll()) {
 
-        jdbcTemplateSciforma.update((properties.getProperty("db.statement-purge")), paramMap);
-
-        Logger.info("table PSN_TPS_PASSE_ACQ : suppression des anomalies datant de plus de <" + nbJourPurgeAno + "> jours. ");
-
-        // récupération des données
-        Logger.info("parcours de la table E_TEMPS_PASSE de la base de données EASYVISTA...");
-
-        HashMap<String, Object> parameters = new HashMap<String, Object>();
-
-        parameters.put("debut", fullPeriod.getDateDebut());
-        parameters.put("fin", fullPeriod.getDateFin());
-
-        jdbcTemplateEasyvista.query((properties.getProperty("db.statement-easyvista")), parameters, new RowCallbackHandler() {
-
-            public void processRow(ResultSet result)
-                    throws SQLException {
-                EasyVistaData record = new EasyVistaData(
-                        result.getString("NumDossier"), // NumDossier
-                        result.getString("CentreDeCoutDossier"), // CentreDeCoutDossier
-                        result.getString("ModeDeversement"), // ModeDeversement
-                        result.getString("Intervenant"), // Intervenant
-                        result.getString("LoginIntervenant"), // LoginIntervenant
-                        result.getInt("TempsSaisi"), // TempsSaisi
-                        result.getDate("DateIntervention") // DateIntervention
-                );
+            if (!(line.length >= 7)) {
+                Logger.warn("la ligne <"
+                        + Arrays.deepToString(line)
+                        + "> n'a pas suffisament d'élements, attendu <7>, seulement <"
+                        + line.length + ">");
+                continue;
+            }
+            /**
+             * SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm");
+             * try { EasyVistaData record = new EasyVistaData(line[0], line[1],
+             * line[2], line[3], line[4], Integer.parseInt(line[5]),
+             * sdf.parse(line[6]));
+             */
+            SimpleDateFormat sdf = new SimpleDateFormat(DATE_MASK);
+            SimpleDateFormat sdf2 = new SimpleDateFormat("dd-MM-yy");
+            try {
+                EasyVistaData record = new EasyVistaData(line[NumDossier], line[CentreDeCoutDossier], line[ModeDeversement], line[Intervenant], line[LoginIntervenant], Integer.parseInt(line[TempsSaisi]), sdf2.parse(sdf2.format(sdf.parse(line[DateIntervention]))));
 
                 if (!recordsByTaskIdByProjectIdByPeriodByResourceId.containsKey(record.getLoginIntervenant())) {
                     recordsByTaskIdByProjectIdByPeriodByResourceId.put(record.getLoginIntervenant(), new HashMap<DateRange, Map<String, Map<String, List<EasyVistaData>>>>());
@@ -354,9 +430,54 @@ public class Main {
                     recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).get(period).get(record.getCentreDeCoutDossier()).put(record.getModeDeversement(), new LinkedList<EasyVistaData>());
                 }
                 recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).get(period).get(record.getCentreDeCoutDossier()).get(record.getModeDeversement()).add(record);
+            } catch (ParseException ex) {
+                Logger.error(ex);
             }
-        });
+        }
+        /* #ELA-01
+         jdbcTemplateEasyvista.query((properties.getProperty("db.statement-easyvista")), parameters, new RowCallbackHandler() {
 
+         public void processRow(ResultSet result)
+         throws SQLException {
+         EasyVistaData record = new EasyVistaData(
+         result.getString("NumDossier"), // NumDossier
+         result.getString("CentreDeCoutDossier"), // CentreDeCoutDossier
+         result.getString("ModeDeversement"), // ModeDeversement
+         result.getString("Intervenant"), // Intervenant
+         result.getString("LoginIntervenant"), // LoginIntervenant
+         result.getInt("TempsSaisi"), // TempsSaisi
+         result.getDate("DateIntervention") // DateIntervention
+         );
+
+         if (!recordsByTaskIdByProjectIdByPeriodByResourceId.containsKey(record.getLoginIntervenant())) {
+         recordsByTaskIdByProjectIdByPeriodByResourceId.put(record.getLoginIntervenant(), new HashMap<DateRange, Map<String, Map<String, List<EasyVistaData>>>>());
+         }
+
+         DateRange period = null;
+         for (DateRange dateRange : periods) {
+         if (dateRange.contains(record.getDateIntervention())) {
+         period = dateRange;
+         }
+         }
+         if (period == null) {
+         throw new TechnicalException(record.getDateIntervention() + " est en dehors de la période de traitement <" + fullPeriod + ">");
+         }
+
+         if (!recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).containsKey(period)) {
+         recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).put(period, new HashMap<String, Map<String, List<EasyVistaData>>>());
+         }
+
+         if (!recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).get(period).containsKey(record.getCentreDeCoutDossier())) {
+         recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).get(period).put(record.getCentreDeCoutDossier(), new HashMap<String, List<EasyVistaData>>());
+         }
+
+         if (!recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).get(period).get(record.getCentreDeCoutDossier()).containsKey(record.getModeDeversement())) {
+         recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).get(period).get(record.getCentreDeCoutDossier()).put(record.getModeDeversement(), new LinkedList<EasyVistaData>());
+         }
+         recordsByTaskIdByProjectIdByPeriodByResourceId.get(record.getLoginIntervenant()).get(period).get(record.getCentreDeCoutDossier()).get(record.getModeDeversement()).add(record);
+         }
+         });
+         */
         // import des temps des feuille de temps
         int total = recordsByTaskIdByProjectIdByPeriodByResourceId.keySet().size();
         int count = 0;
@@ -713,6 +834,7 @@ public class Main {
 
     private static void updateTimesheetAssignment(DateRange period, List<EasyVistaData> records, Timesheet timesheet, TimesheetAssignment timesheetAssignment) {
         Map<Date, Double> sumActualsByDate = new LinkedHashMap<Date, Double>();
+
         for (Date date : period) {
             sumActualsByDate.put(date, 0.0);
         }
@@ -751,7 +873,7 @@ public class Main {
 
         } catch (PSException e) {
             try {
-                Logger.error("Impossible de mettre à jour la charge réelle sur <" + timesheetAssignment.getStringField("Id") + " - " + timesheetAssignment.getStatusName() + "> sur le projet: " +timesheetAssignment.getStringField("Project Name") + " pour " + timesheetAssignment.getStringField("Name"));
+                Logger.error("Impossible de mettre à jour la charge réelle sur <" + timesheetAssignment.getStringField("Id") + " - " + timesheetAssignment.getStatusName() + "> sur le projet: " + timesheetAssignment.getStringField("Project Name") + " pour " + timesheetAssignment.getStringField("Name"));
                 Logger.error(e);
                 //throw new TechnicalException(e, "Impossible de mettre à jour la charge réelle sur <" + timesheetAssignment.getStringField("Id") + " - " + timesheetAssignment.getStatusName() + ">");
             } catch (PSException e1) {
@@ -776,8 +898,7 @@ public class Main {
     private static void rejetPeriodRecords(
             Map<String, Map<String, List<EasyVistaData>>> map, String message) {
         List<EasyVistaData> list = new LinkedList<EasyVistaData>();
-        if(map != null)
-        {
+        if (map != null) {
             for (Map<String, List<EasyVistaData>> easyVistaDatas : map.values()) {
 
                 for (List<EasyVistaData> easyVistaData : easyVistaDatas.values()) {
@@ -835,13 +956,15 @@ public class Main {
             easyVistaData.setDateTraitement(date);
             easyVistaData.setDone(false);
         }
-        
-        try{
-            jdbcTemplateSciforma.batchUpdate((properties.getProperty("db.statement-rejet")), SqlParameterSourceUtils.createBatch(recordsInPeriod.toArray()));
-        }catch(InvalidDataAccessApiUsageException e){
-            Logger.error("Erreur sur le traitement de la requête: " + properties.getProperty("db.statement-rejet"));
-            Logger.error(Arrays.toString(recordsInPeriod.toArray()));
-            Logger.error(e);
-        }
+        /**
+         * #ELA-01 try{
+         * jdbcTemplateSciforma.batchUpdate((properties.getProperty("db.statement-rejet")),
+         * SqlParameterSourceUtils.createBatch(recordsInPeriod.toArray()));
+         * }catch(InvalidDataAccessApiUsageException e){ Logger.error("Erreur
+         * sur le traitement de la requête: " +
+         * properties.getProperty("db.statement-rejet"));
+         * Logger.error(Arrays.toString(recordsInPeriod.toArray()));
+         * Logger.error(e); }
+         */
     }
 }
