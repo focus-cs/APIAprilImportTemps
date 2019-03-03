@@ -74,8 +74,7 @@ public class Main {
     private static boolean store;
 
     public static Session mSession;
-
-    //public static ApplicationContext ctx;
+ 
     private static String IP;
     private static String CONTEXTE;
     private static String USER;
